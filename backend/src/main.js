@@ -2,7 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const axios = require('axios');
 const FormData = require('form-data');
-const produks = require('./produks');
+const style = require('./produks');
+const makeup = require('./produks');
 const skins = require('./skins');
 const admin = require('firebase-admin');
 const serviceAccount = require('./serviceAccountKeys.json'); // Import your serviceAccountKey.json file
@@ -22,7 +23,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 
-app.get('/getUserImage/:id', async (req, res) => {
+app.get('/getUserStyle/:id', async (req, res) => {
     try {
         const userId = req.params.id;
         
@@ -40,7 +41,7 @@ app.get('/getUserImage/:id', async (req, res) => {
         const predictedCategory = userDoc.data().predictedCategory;
 
         // Retrieve the image URLs based on the predictedCategory from the produks module
-        const imageUrls = produks[predictedCategory.toString()];
+        const imageUrls = style[predictedCategory.toString()];
 
         if (!imageUrls || imageUrls.length === 0) {
             return res.status(404).send('Image not found for the given user features');
@@ -54,28 +55,36 @@ app.get('/getUserImage/:id', async (req, res) => {
     }
 });
 
-let users = []; // Initialize an empty array for users
+app.get('/getUserMakeup/:id', async (req, res) => {
+    try {
+        const userId = req.params.id;
+        
+        // Reference to the user document in Firestore
+        const userRef = admin.firestore().collection('User').doc(userId);
 
-app.post('/addUserData', (req, res) => {
-    const { id, userFeatures, predictedCategory } = req.body;
+        // Get the user document from Firestore
+        const userDoc = await userRef.get();
 
-    // Check if the user with the given ID already exists
-    const existingUser = users.find(user => user.id === id);
-    if (existingUser) {
-        return res.status(400).json({ message: 'User with this ID already exists' });
+        if (!userDoc.exists) {
+            return res.status(404).send('User not found');
+        }
+
+        // Get predictedCategory from the user document
+        const predictedCategory = userDoc.data().predictedCategory;
+
+        // Retrieve the image URLs based on the predictedCategory from the produks module
+        const imageUrls = makeup[predictedCategory.toString()];
+
+        if (!imageUrls || imageUrls.length === 0) {
+            return res.status(404).send('Image not found for the given user features');
+        }
+
+        // Instead of fetching images, send the URLs as a JSON response
+        res.json({ images: imageUrls });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Error fetching image URLs');
     }
-
-    // Create a new user object
-    const newUser = { id, predictedCategory };
-
-    // Add the new user to the array
-    users.push(newUser);
-
-    // Send a response with the newly added user
-    res.status(201).json({
-        message: 'User data added successfully',
-        data: newUser
-    });
 });
 
 app.post('/detectskin/:id', upload.single('file'), async (req, res) => {
